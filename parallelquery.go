@@ -11,7 +11,7 @@ import (
 )
 
 // open the comment, compatibles with versions earlier than 1.18
-// type any = interface{}
+type any = interface{}
 
 type (
 	Result   any
