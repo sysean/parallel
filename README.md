@@ -9,7 +9,7 @@ concurrent requests with timeout capability
 ```go
 tasks := make([]TaskFunc, 0, testSize)
 tasks = append(tasks, func (ctx context.Context, i int) (Result, error) {
-// do your things
+    // do your things, like rpc call
 })
 wo := New(tasks)
 result, err := wo.ParallelingWithTimeout(context.Background(), 5*time.Second)
