@@ -47,6 +47,7 @@ func (wo *Worker) ParallelingWithTimeout(ctx context.Context, timeout time.Durat
 
 	ch := make(chan result)
 	notifyChan := make(chan struct{}) // make sure that all goroutines can exit finally
+	defer close(notifyChan)
 
 	for i, task := range wo.tasks {
 		task := task
@@ -60,17 +61,17 @@ func (wo *Worker) ParallelingWithTimeout(ctx context.Context, timeout time.Durat
 	}
 
 	for i := 0; i < len(wo.tasks); i++ {
-		ret := <-ch
-		if ret.err != nil {
-			close(notifyChan)
-			cancel()
-			return nil, ret.err
+		select {
+		case <-ctx.Done():
+			return nil, ErrTimeout
+		case ret := <-ch:
+			if ret.err != nil {
+				cancel()
+				return nil, ret.err
+			}
+			res = append(res, ret.s)
 		}
-		res = append(res, ret.s)
 	}
-
-	close(notifyChan)
-	close(ch)
 
 	return res, nil
 }
@@ -92,35 +93,48 @@ func (wo *Worker) ParallelingWithTimeoutV2(ctx context.Context, timeout time.Dur
 
 	for i, task := range wo.tasks {
 		task := task
+		i := i
 		wg.Add(1)
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			res, err := task(ctx, i)
 			select {
 			case <-notifyChan:
 			case ch <- result{s: res, err: err}:
 			}
-		}(i)
+		}()
 	}
 
+	overChan := make(chan error)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer close(notifyChan)
 		for i := 0; i < len(wo.tasks); i++ {
-			ret := <-ch
-			if ret.err != nil {
-				err = ret.err
-				cancel()
+			select {
+			case <-ctx.Done():
+				overChan <- ErrTimeout
 				return
+			case ret := <-ch:
+				if ret.err != nil {
+					err = ret.err
+					return
+				}
+				res = append(res, ret.s)
 			}
-			res = append(res, ret.s)
 		}
 	}()
 
-	wg.Wait()
-	close(ch)
+	go func() {
+		wg.Wait()
+		close(ch)
+		close(overChan)
+	}()
 
+	over := <-overChan
+	if over != nil {
+		err = over
+	}
 	return
 }
 
@@ -152,20 +166,33 @@ func (wo *Worker) ParallelingWithTimeoutV3(ctx context.Context, timeout time.Dur
 		})
 	}
 
+	overChan := make(chan error)
 	wg.Go(func() error {
 		defer close(notifyChan)
 		for i := 0; i < len(wo.tasks); i++ {
-			ret := <-ch
-			if ret.err != nil {
-				return ret.err
+			select {
+			case <-ctx.Done():
+				overChan <- ErrTimeout
+				return nil
+			case ret := <-ch:
+				if ret.err != nil {
+					return ret.err
+				}
+				res = append(res, ret.s)
 			}
-			res = append(res, ret.s)
 		}
 		return nil
 	})
 
-	err = wg.Wait()
-	close(ch)
+	go func() {
+		err = wg.Wait()
+		close(ch)
+		close(overChan)
+	}()
 
+	over := <-overChan
+	if over != nil {
+		err = over
+	}
 	return
 }

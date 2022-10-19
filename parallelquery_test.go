@@ -18,7 +18,7 @@ func TestParallelingWithTimeout(t *testing.T) {
 		// don't need this
 		time.Sleep(5 * time.Second)
 		qn := atomic.LoadInt64(&goQuitNum)
-		fmt.Printf("goQuitNum = %d ~~~~~ \n", qn)
+		t.Logf("goQuitNum = %d ~~~~~ \n", qn)
 		if qn != testSize {
 			t.Fatalf("goQuitNum should be %d", testSize)
 		}
@@ -33,8 +33,9 @@ func TestParallelingWithTimeout(t *testing.T) {
 			}()
 
 			delay := randTimeBySecond(10)
+			time.Sleep(delay)
 			fmt.Printf("gorutine[%d] running, delay time: %s\n", i, delay)
-			return testDo(ctx, delay)
+			return nil, nil
 		})
 	}
 
@@ -42,21 +43,11 @@ func TestParallelingWithTimeout(t *testing.T) {
 	start := time.Now()
 	_, err := wo.ParallelingWithTimeoutV3(context.Background(), 5*time.Second)
 	if err != nil {
-		fmt.Printf("failed, got an error: %v, cost time: %s\n", err, time.Since(start))
+		t.Logf("failed, got an error: %v, cost time: %s\n", err, time.Since(start))
 		return
 	}
 
-	fmt.Printf("success over, cost time: %s\n", time.Since(start))
-}
-
-// testDo simulate business, d is delay time
-func testDo(ctx context.Context, d time.Duration) (Result, error) {
-	select {
-	case <-ctx.Done():
-		return "", ErrTimeout
-	case <-time.After(d):
-		return "", nil
-	}
+	t.Logf("success over, cost time: %s\n", time.Since(start))
 }
 
 func randTimeBySecond(s int) time.Duration {
