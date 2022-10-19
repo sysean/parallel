@@ -19,9 +19,11 @@ result, err := wo.ParallelingWithTimeout(context.Background(), 5*time.Second)
 
 there are 3 version about `ParallelingWithTimeout` function
 
-- ParallelingWithTimeout original concurrency models
-- ParallelingWithTimeoutV2 use WaitGroup secure synchronization about goroutines
-- ParallelingWithTimeoutV3 use errgroup streamline the code
+- `ParallelingWithTimeout` original concurrency models
+- `ParallelingWithTimeoutV2` use WaitGroup secure synchronization about goroutines
+- `ParallelingWithTimeoutV3` use errgroup streamline the code
+
+v3 is recommended
 
 ## License
 [MIT License][1]
